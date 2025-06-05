@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-2:335412102386:table/EuropeItineraryAppStack-PlacesTableE8547A05-YP88BRYK7OL"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-2:335412102386:table/EuropeItineraryAppStack-PlacesTableE8547A05-YP88BRYK7OL/index/*"
+    }
+  ]
+}

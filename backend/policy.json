@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-2:335412102386:table/EuropeItineraryAppStack-ItineraryTable5E30CEE2-Z1YTETQ2ZU7D"
+    }
+  ]
+}

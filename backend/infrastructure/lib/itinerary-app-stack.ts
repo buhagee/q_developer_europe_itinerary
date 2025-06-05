@@ -63,7 +63,7 @@ export class ItineraryAppStack extends cdk.Stack {
     // Lambda Functions
     const getItineraryFunction = new lambda.Function(this, 'GetItineraryFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'getItinerary.handler',
+      handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/functions/itinerary')),
       environment: lambdaEnv,
       layers: [sharedLayer],
@@ -103,7 +103,7 @@ export class ItineraryAppStack extends cdk.Stack {
 
     const getPlacesFunction = new lambda.Function(this, 'GetPlacesFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'getPlaces.handler',
+      handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/functions/places')),
       environment: lambdaEnv,
       layers: [sharedLayer],
