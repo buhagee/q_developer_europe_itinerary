@@ -77,6 +77,14 @@ export class ItineraryAppStack extends cdk.Stack {
       layers: [sharedLayer],
     });
 
+    const updateItineraryFunction = new lambda.Function(this, 'UpdateItineraryFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'updateItinerary.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/functions/itinerary')),
+      environment: lambdaEnv,
+      layers: [sharedLayer],
+    });
+
     const createNoteFunction = new lambda.Function(this, 'CreateNoteFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'createNote.handler',
@@ -108,13 +116,23 @@ export class ItineraryAppStack extends cdk.Stack {
       environment: lambdaEnv,
       layers: [sharedLayer],
     });
+    
+    const createPlaceFunction = new lambda.Function(this, 'CreatePlaceFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'createPlace.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/functions/places')),
+      environment: lambdaEnv,
+      layers: [sharedLayer],
+    });
 
     // Grant permissions to Lambda functions
     itineraryTable.grantReadData(getItineraryFunction);
     itineraryTable.grantReadData(getItineraryByDateFunction);
+    itineraryTable.grantReadWriteData(updateItineraryFunction);
     
     placesTable.grantReadData(getPlacesFunction);
     placesTable.grantReadData(getPlacesByCityFunction);
+    placesTable.grantWriteData(createPlaceFunction);
     
     notesTable.grantReadWriteData(createNoteFunction);
     notesTable.grantReadData(getNotesFunction);
@@ -126,12 +144,15 @@ export class ItineraryAppStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
+        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
+        allowCredentials: true
       },
       deployOptions: {
         stageName: 'prod',
         // Use minimal deployment settings to reduce costs
         cachingEnabled: false,
-        loggingLevel: apigateway.MethodLoggingLevel.ERROR,
+        // Disable logging to avoid CloudWatch Logs role requirement
+        loggingLevel: apigateway.MethodLoggingLevel.OFF,
       },
     });
 
@@ -141,6 +162,7 @@ export class ItineraryAppStack extends cdk.Stack {
     
     const itineraryDateResource = itineraryResource.addResource('{date}');
     itineraryDateResource.addMethod('GET', new apigateway.LambdaIntegration(getItineraryByDateFunction));
+    itineraryDateResource.addMethod('PUT', new apigateway.LambdaIntegration(updateItineraryFunction));
     
     const notesResource = api.root.addResource('notes');
     notesResource.addMethod('GET', new apigateway.LambdaIntegration(getNotesFunction));
@@ -148,6 +170,7 @@ export class ItineraryAppStack extends cdk.Stack {
     
     const placesResource = api.root.addResource('places');
     placesResource.addMethod('GET', new apigateway.LambdaIntegration(getPlacesFunction));
+    placesResource.addMethod('POST', new apigateway.LambdaIntegration(createPlaceFunction));
     
     const placesCityResource = placesResource.addResource('{city}');
     placesCityResource.addMethod('GET', new apigateway.LambdaIntegration(getPlacesByCityFunction));
@@ -165,7 +188,9 @@ export class ItineraryAppStack extends cdk.Stack {
       defaultBehavior: {
         origin: new origins.S3Origin(websiteBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+        compress: true,
       },
       defaultRootObject: 'index.html',
       errorResponses: [
@@ -173,8 +198,10 @@ export class ItineraryAppStack extends cdk.Stack {
           httpStatus: 404,
           responseHttpStatus: 200,
           responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(5),
         },
       ],
+      httpVersion: cloudfront.HttpVersion.HTTP2,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // Use only North America and Europe edge locations to reduce costs
     });
 

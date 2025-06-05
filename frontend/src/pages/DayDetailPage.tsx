@@ -14,7 +14,12 @@ import {
   CircularProgress,
   Alert,
   IconButton,
-  Chip
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlaceIcon from '@mui/icons-material/Place';
@@ -23,47 +28,15 @@ import FlightIcon from '@mui/icons-material/Flight';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import EventIcon from '@mui/icons-material/Event';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import { format, parse } from 'date-fns';
+import { getItineraryByDate, updateItinerary, ItineraryItem } from '../api/itinerary';
+import { getNotes, createNote, Note } from '../api/notes';
 
-// Mock data - replace with API calls
-const mockItineraryItems = {
-  '18/06/25': {
-    date: '18/06/25',
-    location: 'Malta',
-    food: '',
-    activities: '',
-    accommodation: 'Airbnb - Miami apartments Dragonara Rd, Paceville San Julian, STJ 3141',
-    travel: 'Flight A: Syd 9:10pm -> DXB 5:40AM + 1 day, Flight B: DXB 7:55am -> LCA 11am, Flight C: LCA 12:15pm -> MLA 2:00pm'
-  },
-  '19/06/25': {
-    date: '19/06/25',
-    location: 'Malta',
-    food: '',
-    activities: 'Valletta, St. Johns Co-Cathedral and Upper Barrakka Gardens, Mdina and three Cities',
-    accommodation: 'Airbnb - Miami apartments Dragonara Rd, Paceville San Julian, STJ 3141',
-    travel: ''
-  },
-};
-
-const mockNotes = [
-  { id: '1', date: '18/06/25', content: 'Remember to exchange currency at the airport', createdAt: '2025-05-01T10:30:00Z' },
-  { id: '2', date: '18/06/25', content: 'Pack adapter for European outlets', createdAt: '2025-05-02T14:20:00Z' },
-];
-
-interface ItineraryItem {
-  date: string;
-  location: string;
-  food?: string;
-  activities?: string;
-  accommodation?: string;
-  travel?: string;
-}
-
-interface Note {
-  id: string;
-  date: string;
-  content: string;
-  createdAt: string;
+interface EditDialogState {
+  open: boolean;
+  field: string;
+  value: string;
 }
 
 const DayDetailPage: React.FC = () => {
@@ -74,6 +47,11 @@ const DayDetailPage: React.FC = () => {
   const [newNote, setNewNote] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [editDialog, setEditDialog] = useState<EditDialogState>({
+    open: false,
+    field: '',
+    value: ''
+  });
 
   useEffect(() => {
     if (!date) {
@@ -82,36 +60,30 @@ const DayDetailPage: React.FC = () => {
       return;
     }
 
-    // In a real app, fetch from API
-    // const fetchDayData = async () => {
-    //   try {
-    //     const response = await fetch(`API_URL/itinerary/${date}`);
-    //     const data = await response.json();
-    //     setDayData(data);
-    //     
-    //     const notesResponse = await fetch(`API_URL/notes?date=${date}`);
-    //     const notesData = await notesResponse.json();
-    //     setNotes(notesData);
-    //   } catch (err) {
-    //     setError('Failed to load day data');
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-    
-    // fetchDayData();
-
-    // Using mock data for now
-    setTimeout(() => {
-      const foundItem = Object.values(mockItineraryItems).find(item => item.date === date);
-      if (date && foundItem) {
-        setDayData(foundItem);
-        setNotes(mockNotes.filter(note => note.date === date));
-      } else {
-        setError('Day not found');
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const dayData = await getItineraryByDate(date);
+        setDayData(dayData);
+        
+        try {
+          const notesData = await getNotes(date);
+          setNotes(notesData || []);
+        } catch (notesErr) {
+          console.error('Failed to load notes:', notesErr);
+          // Don't set error for notes, just show empty notes section
+        }
+        
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load day data:', err);
+        setError('Failed to load day data');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, 500);
+    };
+    
+    fetchData();
   }, [date]);
 
   const formatDate = (dateString: string) => {
@@ -123,39 +95,48 @@ const DayDetailPage: React.FC = () => {
     }
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!newNote.trim() || !date) return;
     
-    // In a real app, send to API
-    // const addNote = async () => {
-    //   try {
-    //     const response = await fetch('API_URL/notes', {
-    //       method: 'POST',
-    //       headers: {
-    //         'Content-Type': 'application/json',
-    //       },
-    //       body: JSON.stringify({ date, content: newNote }),
-    //     });
-    //     const data = await response.json();
-    //     setNotes([...notes, data]);
-    //     setNewNote('');
-    //   } catch (err) {
-    //     console.error('Failed to add note:', err);
-    //   }
-    // };
-    
-    // addNote();
+    try {
+      const createdNote = await createNote(date, newNote);
+      setNotes([...notes, createdNote]);
+      setNewNote('');
+    } catch (err) {
+      console.error('Failed to add note:', err);
+    }
+  };
 
-    // Using mock data for now
-    const newNoteObj = {
-      id: `${Date.now()}`,
-      date: date,
-      content: newNote,
-      createdAt: new Date().toISOString(),
-    };
+  const handleEditClick = (field: string, value: string = '') => {
+    setEditDialog({
+      open: true,
+      field,
+      value: value || ''
+    });
+  };
+
+  const handleCloseDialog = () => {
+    setEditDialog({
+      ...editDialog,
+      open: false
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!date || !dayData) return;
     
-    setNotes([...notes, newNoteObj]);
-    setNewNote('');
+    try {
+      const updateData = {
+        ...dayData,
+        [editDialog.field]: editDialog.value
+      };
+      
+      const updatedData = await updateItinerary(date, updateData);
+      setDayData(updatedData);
+      handleCloseDialog();
+    } catch (err) {
+      console.error('Failed to update itinerary:', err);
+    }
   };
 
   if (loading) {
@@ -213,59 +194,109 @@ const DayDetailPage: React.FC = () => {
             </Typography>
             <Divider sx={{ mb: 2 }} />
 
-            {dayData.activities && (
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            {/* Activities Section */}
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <EventIcon color="primary" sx={{ mr: 1 }} />
                   <Typography variant="h6">Activities</Typography>
                 </Box>
+                <IconButton 
+                  size="small" 
+                  color="primary"
+                  onClick={() => handleEditClick('activities', dayData.activities)}
+                >
+                  <EditIcon />
+                </IconButton>
+              </Box>
+              {dayData.activities ? (
                 <Typography variant="body1" sx={{ ml: 4 }}>
                   {dayData.activities}
                 </Typography>
-              </Box>
-            )}
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                  No activities planned. Click edit to add activities.
+                </Typography>
+              )}
+            </Box>
 
-            {dayData.accommodation && (
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            {/* Accommodation Section */}
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <HotelIcon color="primary" sx={{ mr: 1 }} />
                   <Typography variant="h6">Accommodation</Typography>
                 </Box>
+                <IconButton 
+                  size="small" 
+                  color="primary"
+                  onClick={() => handleEditClick('accommodation', dayData.accommodation)}
+                >
+                  <EditIcon />
+                </IconButton>
+              </Box>
+              {dayData.accommodation ? (
                 <Typography variant="body1" sx={{ ml: 4 }}>
                   {dayData.accommodation}
                 </Typography>
-              </Box>
-            )}
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                  No accommodation details. Click edit to add accommodation.
+                </Typography>
+              )}
+            </Box>
 
-            {dayData.travel && (
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            {/* Travel Section */}
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <FlightIcon color="primary" sx={{ mr: 1 }} />
                   <Typography variant="h6">Travel</Typography>
                 </Box>
+                <IconButton 
+                  size="small" 
+                  color="primary"
+                  onClick={() => handleEditClick('travel', dayData.travel)}
+                >
+                  <EditIcon />
+                </IconButton>
+              </Box>
+              {dayData.travel ? (
                 <Typography variant="body1" sx={{ ml: 4 }}>
                   {dayData.travel}
                 </Typography>
-              </Box>
-            )}
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                  No travel details. Click edit to add travel information.
+                </Typography>
+              )}
+            </Box>
 
-            {dayData.food && (
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            {/* Food Section */}
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <RestaurantIcon color="primary" sx={{ mr: 1 }} />
                   <Typography variant="h6">Food</Typography>
                 </Box>
+                <IconButton 
+                  size="small" 
+                  color="primary"
+                  onClick={() => handleEditClick('food', dayData.food)}
+                >
+                  <EditIcon />
+                </IconButton>
+              </Box>
+              {dayData.food ? (
                 <Typography variant="body1" sx={{ ml: 4 }}>
                   {dayData.food}
                 </Typography>
-              </Box>
-            )}
-
-            {!dayData.activities && !dayData.accommodation && !dayData.travel && !dayData.food && (
-              <Typography variant="body1" color="text.secondary">
-                No details available for this day.
-              </Typography>
-            )}
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                  No food details. Click edit to add restaurants or food plans.
+                </Typography>
+              )}
+            </Box>
           </Paper>
 
           {/* Location Image */}
@@ -273,7 +304,7 @@ const DayDetailPage: React.FC = () => {
             <CardMedia
               component="img"
               height="300"
-              image={`https://source.unsplash.com/800x600/?${dayData.location}`}
+              image={`https://source.unsplash.com/800x600/?${encodeURIComponent(dayData.location)},travel`}
               alt={dayData.location}
             />
             <CardContent>
@@ -336,19 +367,35 @@ const DayDetailPage: React.FC = () => {
               </Typography>
             )}
           </Paper>
-
-          {/* Weather Widget Placeholder */}
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Weather Forecast
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="body2" color="text.secondary">
-              Weather information will be available closer to your trip date.
-            </Typography>
-          </Paper>
         </Grid>
       </Grid>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialog.open} onClose={handleCloseDialog}>
+        <DialogTitle>Edit {editDialog.field}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Update the {editDialog.field} information for this day.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="edit-field"
+            label={editDialog.field.charAt(0).toUpperCase() + editDialog.field.slice(1)}
+            type="text"
+            fullWidth
+            multiline
+            rows={4}
+            variant="outlined"
+            value={editDialog.value}
+            onChange={(e) => setEditDialog({...editDialog, value: e.target.value})}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button onClick={handleSaveEdit} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

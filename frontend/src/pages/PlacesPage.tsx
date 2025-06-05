@@ -17,7 +17,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Rating
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PlaceIcon from '@mui/icons-material/Place';
@@ -26,81 +33,19 @@ import HotelIcon from '@mui/icons-material/Hotel';
 import LocalActivityIcon from '@mui/icons-material/LocalActivity';
 import DirectionsBusIcon from '@mui/icons-material/DirectionsBus';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import AddIcon from '@mui/icons-material/Add';
+import { getPlaces, createPlace, Place } from '../api/places';
 
-// Mock data - replace with API call
-const mockPlaces = [
-  {
-    id: '1',
-    name: 'St. Johns Co-Cathedral',
-    city: 'Malta',
-    type: 'ATTRACTION',
-    description: 'Baroque cathedral with ornate interior and Caravaggio paintings',
-    address: 'St John Street, Valletta, Malta',
-    openingHours: '9:30 AM - 4:30 PM',
-    website: 'https://www.stjohnscocathedral.com/',
-    imageUrl: 'https://source.unsplash.com/800x600/?cathedral,malta',
-    rating: 4.8
-  },
-  {
-    id: '2',
-    name: 'Buckingham Palace',
-    city: 'London',
-    type: 'ATTRACTION',
-    description: 'Official residence of the British monarch',
-    address: 'Westminster, London SW1A 1AA, UK',
-    openingHours: 'Summer opening: 9:30 AM - 5:30 PM',
-    website: 'https://www.rct.uk/visit/buckingham-palace',
-    imageUrl: 'https://source.unsplash.com/800x600/?buckingham,palace',
-    rating: 4.5
-  },
-  {
-    id: '3',
-    name: 'Louvre Museum',
-    city: 'Paris',
-    type: 'ATTRACTION',
-    description: 'World\'s largest art museum and historic monument',
-    address: 'Rue de Rivoli, 75001 Paris, France',
-    openingHours: '9:00 AM - 6:00 PM, Closed on Tuesdays',
-    website: 'https://www.louvre.fr/en',
-    imageUrl: 'https://source.unsplash.com/800x600/?louvre,paris',
-    rating: 4.7
-  },
-  {
-    id: '4',
-    name: 'Carette',
-    city: 'Paris',
-    type: 'RESTAURANT',
-    description: 'Classic Parisian café known for pastries and macarons',
-    address: '4 Place du Trocadéro et du 11 Novembre, 75016 Paris, France',
-    openingHours: '7:30 AM - 11:30 PM',
-    website: 'https://www.carette-paris.fr/',
-    imageUrl: 'https://source.unsplash.com/800x600/?cafe,paris',
-    rating: 4.3
-  },
-  {
-    id: '5',
-    name: 'The Circus Hostel',
-    city: 'Berlin',
-    type: 'ACCOMMODATION',
-    description: 'Modern hostel with private rooms and dormitories',
-    address: 'Weinbergsweg 1a, 10119 Berlin, Germany',
-    website: 'https://www.circus-berlin.de/',
-    imageUrl: 'https://source.unsplash.com/800x600/?hostel,berlin',
-    rating: 4.4
-  }
-];
-
-interface Place {
-  id: string;
+interface NewPlaceForm {
   name: string;
   city: string;
   type: string;
-  description?: string;
-  address?: string;
-  openingHours?: string;
-  website?: string;
-  imageUrl?: string;
-  rating?: number;
+  description: string;
+  address: string;
+  openingHours: string;
+  website: string;
+  imageUrl: string;
+  rating: number | null;
 }
 
 const PlacesPage: React.FC = () => {
@@ -111,30 +56,38 @@ const PlacesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
+  const [openAddDialog, setOpenAddDialog] = useState<boolean>(false);
+  const [newPlace, setNewPlace] = useState<NewPlaceForm>({
+    name: '',
+    city: '',
+    type: 'ATTRACTION',
+    description: '',
+    address: '',
+    openingHours: '',
+    website: '',
+    imageUrl: '',
+    rating: null
+  });
+
+  const apiUrl = process.env.REACT_APP_API_URL || '';
 
   useEffect(() => {
-    // In a real app, fetch from API
-    // const fetchPlaces = async () => {
-    //   try {
-    //     const response = await fetch('API_URL/places');
-    //     const data = await response.json();
-    //     setPlaces(data);
-    //     setFilteredPlaces(data);
-    //   } catch (err) {
-    //     setError('Failed to load places data');
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
+    const fetchPlacesData = async () => {
+      try {
+        setLoading(true);
+        const data = await getPlaces();
+        setPlaces(data);
+        setFilteredPlaces(data);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load places data:', err);
+        setError('Failed to load places data');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // fetchPlaces();
-
-    // Using mock data for now
-    setTimeout(() => {
-      setPlaces(mockPlaces);
-      setFilteredPlaces(mockPlaces);
-      setLoading(false);
-    }, 500);
+    fetchPlacesData();
   }, []);
 
   useEffect(() => {
@@ -170,6 +123,50 @@ const PlacesPage: React.FC = () => {
 
   const handleTypeFilterChange = (event: SelectChangeEvent) => {
     setTypeFilter(event.target.value);
+  };
+
+  const handleAddPlace = async () => {
+    try {
+      const placeData = {
+        name: newPlace.name,
+        city: newPlace.city,
+        type: newPlace.type,
+        description: newPlace.description,
+        address: newPlace.address,
+        openingHours: newPlace.openingHours,
+        website: newPlace.website,
+        imageUrl: newPlace.imageUrl,
+        rating: newPlace.rating || undefined
+      };
+      
+      const response = await createPlace(placeData);
+      setPlaces([...places, response]);
+      setOpenAddDialog(false);
+      resetNewPlaceForm();
+    } catch (err) {
+      console.error('Failed to add place:', err);
+    }
+  };
+
+  const resetNewPlaceForm = () => {
+    setNewPlace({
+      name: '',
+      city: '',
+      type: 'ATTRACTION',
+      description: '',
+      address: '',
+      openingHours: '',
+      website: '',
+      imageUrl: '',
+      rating: null
+    });
+  };
+
+  const handleNewPlaceChange = (field: keyof NewPlaceForm, value: any) => {
+    setNewPlace({
+      ...newPlace,
+      [field]: value
+    });
   };
 
   const getTypeIcon = (type: string) => {
@@ -211,9 +208,18 @@ const PlacesPage: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Places to Visit
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          Places to Visit
+        </Typography>
+        <Button 
+          variant="contained" 
+          startIcon={<AddIcon />}
+          onClick={() => setOpenAddDialog(true)}
+        >
+          Add Place
+        </Button>
+      </Box>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
@@ -281,7 +287,7 @@ const PlacesPage: React.FC = () => {
 
       {filteredPlaces.length === 0 ? (
         <Alert severity="info">
-          No places found matching your criteria. Try adjusting your filters.
+          No places found matching your criteria. Try adjusting your filters or add new places.
         </Alert>
       ) : (
         <Grid container spacing={3}>
@@ -303,7 +309,7 @@ const PlacesPage: React.FC = () => {
                   <CardMedia
                     component="img"
                     height="200"
-                    image={place.imageUrl || `https://source.unsplash.com/800x600/?${place.name.replace(' ', ',')}`}
+                    image={place.imageUrl || `https://source.unsplash.com/800x600/?${encodeURIComponent(place.city)},${encodeURIComponent(place.name)}`}
                     alt={place.name}
                   />
                   <CardContent>
@@ -328,8 +334,9 @@ const PlacesPage: React.FC = () => {
                     
                     {place.rating && (
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          Rating: {place.rating}/5
+                        <Rating value={place.rating} precision={0.1} readOnly size="small" />
+                        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                          {place.rating.toFixed(1)}
                         </Typography>
                       </Box>
                     )}
@@ -356,6 +363,126 @@ const PlacesPage: React.FC = () => {
           ))}
         </Grid>
       )}
+
+      {/* Add Place Dialog */}
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Add New Place</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Fill in the details to add a new place to your itinerary.
+          </DialogContentText>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="Name"
+                value={newPlace.name}
+                onChange={(e) => handleNewPlaceChange('name', e.target.value)}
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                required
+                fullWidth
+                label="City"
+                value={newPlace.city}
+                onChange={(e) => handleNewPlaceChange('city', e.target.value)}
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Type</InputLabel>
+                <Select
+                  value={newPlace.type}
+                  label="Type"
+                  onChange={(e) => handleNewPlaceChange('type', e.target.value)}
+                >
+                  <MenuItem value="ATTRACTION">Attraction</MenuItem>
+                  <MenuItem value="RESTAURANT">Restaurant</MenuItem>
+                  <MenuItem value="ACCOMMODATION">Accommodation</MenuItem>
+                  <MenuItem value="TRANSPORT">Transport</MenuItem>
+                  <MenuItem value="OTHER">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Box sx={{ mt: 2 }}>
+                <Typography component="legend">Rating</Typography>
+                <Rating
+                  value={newPlace.rating}
+                  onChange={(_, newValue) => handleNewPlaceChange('rating', newValue)}
+                  precision={0.5}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Description"
+                value={newPlace.description}
+                onChange={(e) => handleNewPlaceChange('description', e.target.value)}
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Address"
+                value={newPlace.address}
+                onChange={(e) => handleNewPlaceChange('address', e.target.value)}
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Opening Hours"
+                value={newPlace.openingHours}
+                onChange={(e) => handleNewPlaceChange('openingHours', e.target.value)}
+                margin="normal"
+                placeholder="e.g., 9:00 AM - 5:00 PM"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Website"
+                value={newPlace.website}
+                onChange={(e) => handleNewPlaceChange('website', e.target.value)}
+                margin="normal"
+                placeholder="https://..."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Image URL (optional)"
+                value={newPlace.imageUrl}
+                onChange={(e) => handleNewPlaceChange('imageUrl', e.target.value)}
+                margin="normal"
+                placeholder="Leave blank to use an auto-generated image"
+                helperText="If left blank, an image will be automatically generated based on the place name and city"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleAddPlace} 
+            variant="contained"
+            disabled={!newPlace.name || !newPlace.city || !newPlace.type}
+          >
+            Add Place
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

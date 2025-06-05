@@ -19,36 +19,7 @@ import FlightIcon from '@mui/icons-material/Flight';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import EventIcon from '@mui/icons-material/Event';
 import { format, parse } from 'date-fns';
-
-// Mock data - replace with API call
-const mockItinerary = [
-  {
-    date: '18/06/25',
-    location: 'Malta',
-    food: '',
-    activities: '',
-    accommodation: 'Airbnb - Miami apartments Dragonara Rd, Paceville San Julian, STJ 3141',
-    travel: 'Flight A: Syd 9:10pm -> DXB 5:40AM + 1 day, Flight B: DXB 7:55am -> LCA 11am, Flight C: LCA 12:15pm -> MLA 2:00pm'
-  },
-  {
-    date: '19/06/25',
-    location: 'Malta',
-    food: '',
-    activities: 'Valletta, St. Johns Co-Cathedral and Upper Barrakka Gardens, Mdina and three Cities',
-    accommodation: '',
-    travel: ''
-  },
-  // Add more days...
-];
-
-interface ItineraryItem {
-  date: string;
-  location: string;
-  food?: string;
-  activities?: string;
-  accommodation?: string;
-  travel?: string;
-}
+import { getItinerary, ItineraryItem } from '../api/itinerary';
 
 const ItineraryPage: React.FC = () => {
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([]);
@@ -57,26 +28,21 @@ const ItineraryPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // In a real app, fetch from API
-    // const fetchItinerary = async () => {
-    //   try {
-    //     const response = await fetch('API_URL/itinerary');
-    //     const data = await response.json();
-    //     setItinerary(data);
-    //   } catch (err) {
-    //     setError('Failed to load itinerary data');
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
+    const fetchItineraryData = async () => {
+      try {
+        setLoading(true);
+        const data = await getItinerary();
+        setItinerary(data);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load itinerary data', err);
+        setError('Failed to load itinerary data');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // fetchItinerary();
-
-    // Using mock data for now
-    setTimeout(() => {
-      setItinerary(mockItinerary);
-      setLoading(false);
-    }, 500);
+    fetchItineraryData();
   }, []);
 
   const formatDate = (dateString: string) => {
